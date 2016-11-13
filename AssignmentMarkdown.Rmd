@@ -1,0 +1,519 @@
+---
+title: "SMDM Assignment"
+author: "Harshit"
+date: "November 10, 2016"
+output: pdf_document
+---
+
+
+#R Assignment - Pune Census Case
+
+Objective of the analysis : The district collector would like to analysis this data with the objective of evaluating the status of the Female population across the district. This statistical analysis should support in taking decisions to run government programs focusing on different areas of Female population such as female literacy, female child welfare, sex ratios, female employment etc.
+
+Below are the inputs to be considered for your analysis:
+
+The CD blocks need to be divided into three categories as below:   
+Category A : total population upto 2 lacs  
+Category B : total population between 2-5 lacs  
+Category C : total population above 5 lacs  
+
+
+
+The towns need to be divided into three categories as below:  
+Category T1 : total population upto 15K  
+Category T2 : total population between 15-25K  
+Category T3 : total population above 25K  
+
+
+The villages need to be divided into four categories as below:  
+Category V1 : total population upto 2500  
+Category V2 : total population between 2500-10,000  
+Category V3 : total population between 10,000-40,000  
+Catgeory V4 : total population above 40,000  
+
+
+Using R execute a statistical analysis as per the above buckets, and help the district collector to understand the following:  
+Sex ratio(per 1000)   
+Child sex ratio (0-6 age)   
+Average literacy rate  
+Female literacy rate  
+Child proportion(0-6 age)   
+Girls proportion(0-6 age)  
+Averge percentage of worker population female   
+Proportion of Main : Marginal worker population female  
+Within female Main worker population the proportion of Main :Main cultivator : 
+Main agri labour: Main houshold industry :Main other  
+Average number of child(0-6) per household  
+Average number of girl child(0-6) per household  
+Average percentage non working population female  
+
+
+Is there a significant difference in the above parameters between the top and the lowest category levels of each of the CD block(A/C), Village(V1/v4) and Towns(T1/T3)?  
+Is there a significant difference in the average literacy rate, child sex ratio, Female literacy rate , average female worker population between Urban and Rural ?  
+Is there a relationship between the female literacy rate and the average percentage worker population female in the villages?   
+
+
+Overall Rural vs Urban Sex ratio  
+Pune district population density: Pune district administers 15,643 square kilometers of areas   
+Top 5 highest literacy rate towns, village and district blocks   
+Top 5 highest female literacy rate towns, village and district blocks   
+Bottom 5 lowest literacy rate towns, village and district blocks  
+Bottom 5 lowest female literacy rate towns, village and district blocks   
+Lowest sex ratio towns, village and district blocks in each category  
+
+
+##Solution with Output
+
+###Reading CSV file
+```{r}
+Census <- read.csv(file.choose())
+```
+
+
+
+###Creating subsets for CD Blocks, Towns and Villages
+```{r}
+attach(Census)
+CDBlocks <- subset(Census, Level=="CD BLOCK" & Total.Rural.Urban=="Total")
+CDBlocksN <- subset(Census, Level=="CD BLOCK" & Total.Rural.Urban!="Total")
+Town <- subset(Census, Level=="TOWN")
+Village <- subset(Census, Level=="VILLAGE")
+detach(Census)
+```
+
+
+###Creating Categories in those subsets
+```{r}
+attach(CDBlocks)
+CDCat <- ifelse(Total.Population.Person <= 200000, 'A',
+                ifelse(Total.Population.Person > 200000 & Total.Population.Person <= 500000, 'B',
+                       ifelse(Total.Population.Person > 500000, 'C','F')))
+
+CDBlockCat <- data.frame(CDBlocks,CDCat)
+detach(CDBlocks)
+
+attach(Town)
+TCat <- ifelse(Total.Population.Person <= 15000, "T1",
+                  ifelse(Total.Population.Person > 15000 & Total.Population.Person <= 25000, "T2",
+                         ifelse(Total.Population.Person > 25000, "T3", "T9")))
+
+TownCat <- data.frame(Town,TCat)
+detach(Town)
+
+
+attach(Village)
+VCat <- ifelse(Total.Population.Person <= 2500, "V1",
+               ifelse(Total.Population.Person > 2500 & Total.Population.Person <= 10000, "V2", 
+                      ifelse(Total.Population.Person > 10000 & Total.Population.Person <= 40000, "V3",
+                             ifelse(Total.Population.Person > 40000, "V4", "V9"))))
+
+VillageCat <- data.frame(Village,VCat)
+detach(Village)
+
+myvars <- c("CD.Block_Code", "CDCat")
+CatCD <- CDBlockCat[myvars]
+CDBlockCat2 <- merge(CDBlocksN, CatCD, by="CD.Block_Code")
+
+```
+
+
+###Calculating Ratios  
+
+####CD Block Ratios
+
+```{r}
+library("plyr", lib.loc="~/R/win-library/3.3")
+
+CDBlockRatios <- ddply(CDBlockCat2,"CDCat",summarize,SexRatio=((sum(Total.Population.Female)/sum(Total.Population.Male))*1000),
+      ChildSexRatio=((sum(Population.in.the.age.group.0.6.Female)/sum(Population.in.the.age.group.0.6.Male))*1000),
+      AvgLiteracyRate=((mean(Literates.Population.Person)/mean(Total.Population.Person - Population.in.the.age.group.0.6.Person))*100),
+      FemaleLiteracyRate=((sum(Literates.Population.Female)/sum(Total.Population.Female - Population.in.the.age.group.0.6.Female))*100),
+      ChildProportion=(sum(Population.in.the.age.group.0.6.Person)/sum(Total.Population.Person)),
+      GirlsProportion=(sum(Population.in.the.age.group.0.6.Female)/sum(Population.in.the.age.group.0.6.Person)),
+      AvgPercentFemaleWorker=((mean(Total.Worker.Population.Female)/mean(Total.Worker.Population.Person))*100),
+      MainMarginalWorkerFemale=sum(Main.Working.Population.Female)/sum(Marginal.Worker.Population.Female),
+      CultivatorToWorker=(sum(Main.Cultivator.Population.Female)/sum(Main.Working.Population.Female)),
+      AgriLabourToWorker=(sum(Main.Agricultural.Labourers.Population.Female)/sum(Main.Working.Population.Female)),
+      HouseholdToWorker=(sum(Main.Household.Industries.Population.Female)/sum(Main.Working.Population.Female)),
+      OtherToWorker=(sum(Main.Other.Workers.Population.Female)/sum(Main.Working.Population.Female)),
+      AvgChildPerHousehold=(mean(Population.in.the.age.group.0.6.Person)/mean(No.of.Households)),
+      AvgGirlChildPerHousehold=(mean(Population.in.the.age.group.0.6.Female)/mean(No.of.Households)),
+      AvgNonWorkingPopFemale=((mean(Non.Working.Population.Female)/mean(Non.Working.Population.Person))*100))
+
+#CD Block Ratios
+CDBlockRatios
+```
+
+
+####Town Ratios
+```{r}
+TownRatios <- ddply(TownCat,"TCat",summarize,SexRatio=((sum(Total.Population.Female)/sum(Total.Population.Male))*1000),
+      ChildSexRatio=((sum(Population.in.the.age.group.0.6.Female)/sum(Population.in.the.age.group.0.6.Male))*1000),
+      AvgLiteracyRate=((mean(Literates.Population.Person)/mean(Total.Population.Person - Population.in.the.age.group.0.6.Person))*100),
+      FemaleLiteracyRate=((sum(Literates.Population.Female)/sum(Total.Population.Female - Population.in.the.age.group.0.6.Female))*100),
+      ChildProportion=(sum(Population.in.the.age.group.0.6.Person)/sum(Total.Population.Person)),
+      GirlsProportion=(sum(Population.in.the.age.group.0.6.Female)/sum(Population.in.the.age.group.0.6.Person)),
+      AvgPercentFemaleWorker=((mean(Total.Worker.Population.Female)/mean(Total.Worker.Population.Person))*100),
+      MainMarginalWorkerFemale=sum(Main.Working.Population.Female)/sum(Marginal.Worker.Population.Female),
+      CultivatorToWorker=(sum(Main.Cultivator.Population.Female)/sum(Main.Working.Population.Female)),
+      AgriLabourToWorker=(sum(Main.Agricultural.Labourers.Population.Female)/sum(Main.Working.Population.Female)),
+      HouseholdToWorker=(sum(Main.Household.Industries.Population.Female)/sum(Main.Working.Population.Female)),
+      OtherToWorker=(sum(Main.Other.Workers.Population.Female)/sum(Main.Working.Population.Female)),
+      AvgChildPerHousehold=(mean(Population.in.the.age.group.0.6.Person)/mean(No.of.Households)),
+      AvgGirlChildPerHousehold=(mean(Population.in.the.age.group.0.6.Female)/mean(No.of.Households)),
+      AvgNonWorkingPopFemale=((mean(Non.Working.Population.Female)/mean(Non.Working.Population.Person))*100))
+
+#Town Ratios
+TownRatios
+```
+
+
+####Village Ratios
+```{r}
+
+VillageRatios <- ddply(VillageCat,"VCat",summarize,SexRatio=((sum(Total.Population.Female)/sum(Total.Population.Male))*1000),
+      ChildSexRatio=((sum(Population.in.the.age.group.0.6.Female)/sum(Population.in.the.age.group.0.6.Male))*1000),
+      AvgLiteracyRate=((mean(Literates.Population.Person)/mean(Total.Population.Person - Population.in.the.age.group.0.6.Person))*100),
+      FemaleLiteracyRate=((sum(Literates.Population.Female)/sum(Total.Population.Female - Population.in.the.age.group.0.6.Female))*100),
+      ChildProportion=(sum(Population.in.the.age.group.0.6.Person)/sum(Total.Population.Person)),
+      GirlsProportion=(sum(Population.in.the.age.group.0.6.Female)/sum(Population.in.the.age.group.0.6.Person)),
+      AvgPercentFemaleWorker=((mean(Total.Worker.Population.Female)/mean(Total.Worker.Population.Person))*100),
+      MainMarginalWorkerFemale=sum(Main.Working.Population.Female)/sum(Marginal.Worker.Population.Female),
+      CultivatorToWorker=(sum(Main.Cultivator.Population.Female)/sum(Main.Working.Population.Female)),
+      AgriLabourToWorker=(sum(Main.Agricultural.Labourers.Population.Female)/sum(Main.Working.Population.Female)),
+      HouseholdToWorker=(sum(Main.Household.Industries.Population.Female)/sum(Main.Working.Population.Female)),
+      OtherToWorker=(sum(Main.Other.Workers.Population.Female)/sum(Main.Working.Population.Female)),
+      AvgChildPerHousehold=(mean(Population.in.the.age.group.0.6.Person)/mean(No.of.Households)),
+      AvgGirlChildPerHousehold=(mean(Population.in.the.age.group.0.6.Female)/mean(No.of.Households)),
+      AvgNonWorkingPopFemale=((mean(Non.Working.Population.Female)/mean(Non.Working.Population.Person))*100))
+
+#Village Ratios
+VillageRatios
+```
+
+
+####Rural vs Urban Ratios
+```{r}
+
+RuralUrbanRatios <- ddply(CDBlockCat2,"Total.Rural.Urban",summarize,SexRatio=((sum(Total.Population.Female)/sum(Total.Population.Male))*1000),
+      ChildSexRatio=((sum(Population.in.the.age.group.0.6.Female)/sum(Population.in.the.age.group.0.6.Male))*1000),
+      AvgLiteracyRate=((mean(Literates.Population.Person)/mean(Total.Population.Person))*100),
+      FemaleLiteracyRate=((sum(Literates.Population.Female)/sum(Total.Population.Female))*100),
+      ChildProportion=(sum(Population.in.the.age.group.0.6.Person)/sum(Total.Population.Person)),
+      GirlsProportion=(sum(Population.in.the.age.group.0.6.Female)/sum(Population.in.the.age.group.0.6.Person)),
+      AvgPercentFemaleWorker=((mean(Total.Worker.Population.Female)/mean(Total.Worker.Population.Person))*100),
+      MainMarginalWorkerFemale=sum(Main.Working.Population.Female)/sum(Marginal.Worker.Population.Female),
+      CultivatorToWorker=(sum(Main.Cultivator.Population.Female)/sum(Main.Working.Population.Female)),
+      AgriLabourToWorker=(sum(Main.Agricultural.Labourers.Population.Female)/sum(Main.Working.Population.Female)),
+      HouseholdToWorker=(sum(Main.Household.Industries.Population.Female)/sum(Main.Working.Population.Female)),
+      OtherToWorker=(sum(Main.Other.Workers.Population.Female)/sum(Main.Working.Population.Female)),
+      AvgChildPerHousehold=(mean(Population.in.the.age.group.0.6.Person)/mean(No.of.Households)),
+      AvgGirlChildPerHousehold=(mean(Population.in.the.age.group.0.6.Female)/mean(No.of.Households)),
+      AvgNonWorkingPopFemale=((mean(Non.Working.Population.Female)/mean(Non.Working.Population.Person))*100))
+
+#Rural vs Urban Ratios
+RuralUrbanRatios
+```
+
+
+
+###*Question : Is there a significant difference in the above parameters between the top and the lowest category levels of each of the CD block(A/C), Village(V1/v4) and Towns(T1/T3)?*  
+
+**Check the graphs below for the difference in the above parameters between top and lowest category levels of CD Blocks**
+```{r echo = FALSE}
+library("ggplot2", lib.loc="~/R/win-library/3.3")
+attach(CDBlockRatios)
+```
+```{r}
+qplot(CDCat, SexRatio, data=CDBlockRatios, xlab="CD Block Category", ylab="Sex Ratio", main="CD Block Category vs Sex Ratio", ylim=c(800,1000))
+qplot(CDCat, ChildSexRatio, data=CDBlockRatios, xlab="CD Block Category", ylab="Child Sex Ratio", main="CD Block Category vs Child Sex Ratio", ylim=c(800,1000))
+qplot(CDCat, FemaleLiteracyRate, data=CDBlockRatios, xlab="CD Block Category", ylab="Female Literacy Rate", main="CD Block Category vs Female Literacy Rate", ylim=c(0,100))
+qplot(CDCat, GirlsProportion, data=CDBlockRatios, xlab="CD Block Category", ylab="Proportion of Girls", main="CD Block Category vs Proportion of Girls(0-6 years)", ylim=c(0,1))
+qplot(CDCat, AvgPercentFemaleWorker, data=CDBlockRatios, xlab="CD Block Category", ylab="Average Percentage of Female Workers", main="CD Block Category vs Average Percentage of Female Workers", ylim=c(0,100))
+qplot(CDCat, AvgGirlChildPerHousehold, data=CDBlockRatios, xlab="CD Block Category", ylab="Average Number of Girl Child per Household", main="CD Block Category vs Average Number of Girl Child per Household", ylim=c(0,3))
+qplot(CDCat, AvgNonWorkingPopFemale, data=CDBlockRatios, xlab="CD Block Category", ylab="Average Percentage of Non-Working Population of Females", main="CD Block Category vs Average Percentage of Non-Working Population of Females", ylim=c(0,100))
+
+```
+```{r echo = FALSE}
+detach(CDBlockRatios)
+```
+
+>**There is significant difference in Sex Ratio and Child Sex Ratio between CD Block category A and C. The other ratios are similar.**  
+
+***
+
+**Check the graphs below for the difference in the above parameters between top and lowest category levels of Towns**
+```{r echo = FALSE}
+attach(TownRatios)
+```
+```{r}
+qplot(TCat, SexRatio, data=TownRatios, xlab="Town Category", ylab="Sex Ratio", main="Town Category vs Sex Ratio", ylim=c(800,1000))
+qplot(TCat, ChildSexRatio, data=TownRatios, xlab="Town Category", ylab="Child Sex Ratio", main="Town Category vs Child Sex Ratio", ylim=c(800,1000))
+qplot(TCat, FemaleLiteracyRate, data=TownRatios, xlab="Town Category", ylab="Female Literacy Rate", main="Town Category vs Female Literacy Rate", ylim=c(0,100))
+qplot(TCat, GirlsProportion, data=TownRatios, xlab="Town Category", ylab="Proportion of Girls", main="Town Category vs Proportion of Girls(0-6 years)", ylim=c(0,1))
+qplot(TCat, AvgPercentFemaleWorker, data=TownRatios, xlab="Town Category", ylab="Average Percentage of Female Workers", main="Town Category vs Average Percentage of Female Workers", ylim=c(0,100))
+qplot(TCat, AvgGirlChildPerHousehold, data=TownRatios, xlab="Town Category", ylab="Average Number of Girl Child per Household", main="Town Category vs Average Number of Girl Child per Household", ylim=c(0,3))
+qplot(TCat, AvgNonWorkingPopFemale, data=TownRatios, xlab="Town Category", ylab="Average Percentage of Non-Working Population of Females", main="Town Category vs Average Percentage of Non-Working Population of Females", ylim=c(0,100))
+
+```
+```{r echo = FALSE}
+detach(TownRatios)
+```
+
+>**There is significant difference in Sex Ratio between Town category T1 and T3. The rest of the ratios do not have much variation between the two.**
+
+***
+
+
+**Check the graphs below for the difference in the above parameters between top and lowest category levels of Villages**
+```{r echo = FALSE}
+attach(VillageRatios)
+```
+```{r}
+qplot(VCat, SexRatio, data=VillageRatios, xlab="Village Category", ylab="Sex Ratio", main="Village Category vs Sex Ratio", ylim=c(800,1000))
+qplot(VCat, ChildSexRatio, data=VillageRatios, xlab="Village Category", ylab="Child Sex Ratio", main="Village Category vs Child Sex Ratio", ylim=c(800,1000))
+qplot(VCat, FemaleLiteracyRate, data=VillageRatios, xlab="Village Category", ylab="Female Literacy Rate", main="Village Category vs Female Literacy Rate", ylim=c(0,100))
+qplot(VCat, GirlsProportion, data=VillageRatios, xlab="Village Category", ylab="Proportion of Girls", main="Village Category vs Proportion of Girls(0-6 years)", ylim=c(0,1))
+qplot(VCat, AvgPercentFemaleWorker, data=VillageRatios, xlab="Village Category", ylab="Average Percentage of Female Workers", main="Village Category vs Average Percentage of Female Workers", ylim=c(0,100))
+qplot(VCat, AvgGirlChildPerHousehold, data=VillageRatios, xlab="Village Category", ylab="Average Number of Girl Child per Household", main="Village Category vs Average Number of Girl Child per Household", ylim=c(0,3))
+qplot(VCat, AvgNonWorkingPopFemale, data=VillageRatios, xlab="Village Category", ylab="Average Percentage of Non-Working Population of Females", main="Village Category vs Average Percentage of Non-Working Population of Females", ylim=c(0,100))
+
+```
+```{r echo = FALSE}
+detach(VillageRatios)
+```
+
+
+>**There is significant difference in Sex Ratio, Child Sex Ratio, Female Literacy Rate and Average Percenatge of Female Workers between Villages of category V1 and V4. There is not much defference in the other ratios. **
+
+***
+
+###*Question : Is there a significant difference in the average literacy rate, child sex ratio, Female literacy rate , average female worker population between Urban and Rural?*  
+
+**Check the graphs below for the differences between Rural and Urban**
+
+```{r echo = FALSE}
+attach(RuralUrbanRatios)
+```
+```{r}
+qplot(Total.Rural.Urban, AvgLiteracyRate, data=RuralUrbanRatios, xlab="Rural/Urban", ylab="Average Literacy Rate", main="Rural/Urban vs Average Literacy Rate")
+qplot(Total.Rural.Urban, ChildSexRatio, data=RuralUrbanRatios, xlab="Rural/Urban", ylab="Child Sex Ratio (Females per 1000 Males)", main="Rural/Urban vs Child Sex Ratio")
+qplot(Total.Rural.Urban, FemaleLiteracyRate, data=RuralUrbanRatios, xlab="Rural/Urban", ylab="Female Literacy Rate", main="Rural/Urban vs Female Literacy Rate")
+qplot(Total.Rural.Urban, AvgPercentFemaleWorker, data=RuralUrbanRatios, xlab="Rural/Urban", ylab="Average Percentage of Female Worker Population", main="Rural/Urban vs Average Percentage of Female Worker Population")
+```
+```{r echo = FALSE}
+detach(RuralUrbanRatios)
+```
+
+>**As we can see from the graphs above, there is very significant difference between rural and urban for the mentioned ratios.**
+
+***
+
+###*Question : Is there a relationship between the female literacy rate and the average percentage worker population female in the villages?*    
+```{r}
+VFemaleLiteracyRate <- VillageRatios$FemaleLiteracyRate
+VAvgPercentWorkingPopFemale <- VillageRatios$AvgPercentFemaleWorker
+cor(VFemaleLiteracyRate, VAvgPercentWorkingPopFemale)
+
+```
+
+>**As we can see above there is a strong relationship between the two as there is a nearly perfect, linear negative correlation.**
+
+***
+
+####Rural vs Urban Sex Ratio  
+```{r}
+RuralUrbanRatios[1:2]
+```
+***
+  
+    
+####Pune Population Density
+```{r}
+PunePopulationDensity <- sum(CDBlockCat2$Total.Population.Person)/15643
+PunePopulationDensity
+
+```
+***
+  
+  
+####Top 5 Literacy Rates  
+
+**Top 5 CD Blocks based on Literacy Rates**
+```{r}
+#Top 5 CD Block Literacy Rates
+LiteracyRate <- (CDBlockCat$Literates.Population.Person/CDBlockCat$Total.Population.Person)*100
+CDBlockCat <- data.frame(CDBlockCat, LiteracyRate)
+Top5LiteracyRateCDBlock <- head(arrange(CDBlockCat,desc(LiteracyRate)), n = 5)
+Top5LiteracyRateCDBlock[c(3,10,97,98)]
+```
+
+**Top 5 Towns based on Literacy Rates**
+```{r}
+#Top 5 Town Literacy Rates
+LiteracyRate <- (TownCat$Literates.Population.Person/TownCat$Total.Population.Person)*100
+TownCat <- data.frame(TownCat, LiteracyRate)
+Top5LiteracyRateTown <- head(arrange(TownCat,desc(LiteracyRate)), n = 5)
+Top5LiteracyRateTown[c(3,10,97,98)]
+```
+
+
+**Top 5 Villages based on Literacy Rates**
+```{r}
+#Top 5 Village Literacy Rates
+LiteracyRate <- (VillageCat$Literates.Population.Person/VillageCat$Total.Population.Person)*100
+VillageCat <- data.frame(VillageCat, LiteracyRate)
+Top5LiteracyRateVillage <- head(arrange(VillageCat,desc(LiteracyRate)), n = 5)
+Top5LiteracyRateVillage[c(3,10,97,98)]
+```
+***
+  
+    
+####Top 5 Female Literacy Rates
+
+**Top 5 CD Blocks based on Female Literacy Rates**
+```{r}
+#Top 5 CD Block Female Literacy Rates
+LiteracyRateFemale <- (CDBlockCat$Literates.Population.Female/CDBlockCat$Total.Population.Female)*100
+CDBlockCat <- data.frame(CDBlockCat, LiteracyRateFemale)
+Top5FemaleLiteracyRateCDBlock <- head(arrange(CDBlockCat,desc(LiteracyRateFemale)), n = 5)
+Top5FemaleLiteracyRateCDBlock[c(3,10,97,99)]
+```
+
+
+**Top 5 Towns based on Female Literacy Rates**
+```{r}
+#Top 5 Town Female Literacy Rates
+LiteracyRateFemale <- (TownCat$Literates.Population.Female/TownCat$Total.Population.Female)*100
+TownCat <- data.frame(TownCat, LiteracyRateFemale)
+Top5FemaleLiteracyRateTown <- head(arrange(TownCat,desc(LiteracyRateFemale)), n = 5)
+Top5FemaleLiteracyRateTown[c(3,10,97,99)]
+```
+
+
+**Top 5 Villages based on Female Literacy Rates**
+```{r}
+#Top 5 Village Female Literacy Rates
+LiteracyRateFemale <- (VillageCat$Literates.Population.Female/VillageCat$Total.Population.Female)*100
+VillageCat <- data.frame(VillageCat, LiteracyRateFemale)
+Top5FemaleLiteracyRateVillage <- head(arrange(VillageCat,desc(LiteracyRateFemale)), n = 5)
+Top5FemaleLiteracyRateVillage[c(3,10,97,99)]
+```
+***
+  
+  
+####Bottom 5 Literacy Rates
+
+**Bottom 5 CD Blocks based on Literacy Rates**
+```{r}
+#Bottom 5 CD Block Literacy Rates
+Bottom5LiteracyRateCDBlock <- head(arrange(CDBlockCat,LiteracyRate), n = 5)
+Bottom5LiteracyRateCDBlock[c(3,10,97,98)]
+```
+
+
+**Bottom Towns based on Literacy Rates**
+```{r}
+#Bottom 5 Town Literacy Rates
+Bottom5LiteracyRateTown <- head(arrange(TownCat,LiteracyRate), n = 5)
+Bottom5LiteracyRateTown[c(3,10,97,98)]
+```
+
+
+**Bottom 5 Villages based on Literacy Rates**
+```{r}
+#Bottom 5 Village Literacy Rates
+Bottom5LiteracyRateVillage <- head(arrange(VillageCat,LiteracyRate), n = 5)
+Bottom5LiteracyRateVillage[c(3,10,97,98)]
+```
+***
+  
+  
+####Bottom 5 Female Literacy Rates
+
+**Bottom 5 CD Blocks based on Female Literacy Rates**
+```{r}
+#Bottom 5 CD Block Female Literacy Rates
+Bottom5FemaleLiteracyRateCDBlock <- head(arrange(CDBlockCat,LiteracyRateFemale), n = 5)
+Bottom5FemaleLiteracyRateCDBlock[c(3,10,97,99)]
+```
+
+
+**Bottom 5 CD Blocks based on Female Literacy Rates**
+```{r}
+#Bottom 5 Town Female Literacy Rates
+Bottom5FemaleLiteracyRateTown <- head(arrange(TownCat,LiteracyRateFemale), n = 5)
+Bottom5FemaleLiteracyRateTown[c(3,10,97,99)]
+```
+
+
+**Bottom 5 CD Blocks based on Female Literacy Rates**
+```{r}
+#Bottom 5 Village Female Literacy Rates
+Bottom5FemaleLiteracyRateVillage <- head(arrange(VillageCat,LiteracyRateFemale), n = 5)
+Bottom5FemaleLiteracyRateVillage[c(3,10,97,99)]
+```
+***
+  
+  
+####Category Wise Lowest Sex Ratios
+
+**Category Wise Lowest Sex Ratios in CD Blocks**
+```{r}
+#Lowest Sex Ratio CD Blocks
+SexRatio <- (CDBlockCat$Total.Population.Female/CDBlockCat$Total.Population.Male)*1000
+CDBlockCat <- data.frame(CDBlockCat, SexRatio)
+CDBlockCat1 <- subset(CDBlockCat, CDCat=="A")
+CDBlockCat2 <- subset(CDBlockCat, CDCat=="B")
+CDBlockCat3 <- subset(CDBlockCat, CDCat=="C")
+LowestSexRatioCDBlockA <- head(arrange(CDBlockCat1,SexRatio), n = 1)
+LowestSexRatioCDBlockA[c(3,10,97,100)]
+LowestSexRatioCDBlockB <- head(arrange(CDBlockCat2,SexRatio), n = 1)
+LowestSexRatioCDBlockB[c(3,10,97,100)]
+LowestSexRatioCDBlockC <- head(arrange(CDBlockCat3,SexRatio), n = 1)
+LowestSexRatioCDBlockC[c(3,10,97,100)]
+```
+
+
+**Category Wise Lowest Sex Ratios in Towns**
+```{r}
+#Lowest Sex Ratio Towns
+SexRatio <- (TownCat$Total.Population.Female/TownCat$Total.Population.Male)*1000
+TownCat <- data.frame(TownCat, SexRatio)
+TownCat1 <- subset(TownCat, TCat=="T1")
+TownCat2 <- subset(TownCat, TCat=="T2")
+TownCat3 <- subset(TownCat, TCat=="T3")
+LowestSexRatioTownT1 <- head(arrange(TownCat1,SexRatio), n = 1)
+LowestSexRatioTownT1[c(3,9,10,97,100)]
+LowestSexRatioTownT2 <- head(arrange(TownCat2,SexRatio), n = 1)
+LowestSexRatioTownT2[c(3,9,10,97,100)]
+LowestSexRatioTownT3 <- head(arrange(TownCat3,SexRatio), n = 1)
+LowestSexRatioTownT3[c(3,9,10,97,100)]
+```
+
+
+**Category Wise Lowest Sex Ratios in Villages**
+```{r}
+#Lowest Sex Ratio Villages
+SexRatio <- (VillageCat$Total.Population.Female/VillageCat$Total.Population.Male)*1000
+VillageCat <- data.frame(VillageCat, SexRatio)
+VillageCat1 <- subset(VillageCat, VCat=="V1")
+VillageCat2 <- subset(VillageCat, VCat=="V2")
+VillageCat3 <- subset(VillageCat, VCat=="V3")
+VillageCat4 <- subset(VillageCat, VCat=="V4")
+LowestSexRatioVillageV1 <- head(arrange(VillageCat1,SexRatio), n = 1)
+LowestSexRatioVillageV1[c(3,9,10,97,100)]
+LowestSexRatioVillageV2 <- head(arrange(VillageCat2,SexRatio), n = 1)
+LowestSexRatioVillageV2[c(3,9,10,97,100)]
+LowestSexRatioVillageV3 <- head(arrange(VillageCat3,SexRatio), n = 1)
+LowestSexRatioVillageV3[c(3,9,10,97,100)]
+LowestSexRatioVillageV4 <- head(arrange(VillageCat4,SexRatio), n = 1)
+LowestSexRatioVillageV4[c(3,9,10,97,100)]
+```
+
+
+
+
+
+## End of File
+
